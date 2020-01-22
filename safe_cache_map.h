@@ -7,6 +7,21 @@
 
 
 
+struct MutexInitException : public std::exception {
+   const char * what () const throw () {
+      return "Can't init mutex!";
+   }
+};
+
+
+struct MutexError : public std::exception {
+   const char * what () const throw () {
+      return "Mutex lock or unlock error!";
+   }
+};
+
+
+
 
 //exceptions for mutex error
 
@@ -16,6 +31,8 @@ public:
 
 	SafeCacheMap();
 
+	~SafeCacheMap();
+
 	std::map<std::string, CacheRecord *>::iterator find(std::string& key);
 
 	void insert(std::string& key, CacheRecord * record);
@@ -24,11 +41,10 @@ public:
 
 	std::map<std::string, CacheRecord *>::iterator end(){return this->cache.end();}
 
-	int lock();
-	int unlock();
+	void lock();
+	void unlock();
 
 private:
-
 
 	pthread_mutex_t mutex;
 	std::map<std::string, CacheRecord *> cache;

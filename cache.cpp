@@ -12,16 +12,22 @@ CacheRecord::CacheRecord(bool local){
 	this->capacity = 0;
 	this->links_count = 0;
 
-
-	pthread_rwlock_init(&rwlock, NULL);
+	errno = pthread_rwlock_init(&rwlock, NULL);
+	if(0 != errno){
+		throw InitRwlockException();
+	}
 }
 
 
 CacheRecord::~CacheRecord(){
 	free(this->data);
+	errno = pthread_rwlock_destroy(&rwlock);
+	if(0 != errno){
+		perror("pthread_rwlock_destroy");
+	}
 }
 
-
+//обработать exception в session
 int CacheRecord::add_data(char * add_data, size_t add_size){
 
 
@@ -76,8 +82,7 @@ void CacheRecord::read_lock(){
 	errno = pthread_rwlock_rdlock(&this->rwlock);
 	if(0 != errno){
 		perror("pthread_rwlock_rdlock");
-		//exc
-		return;
+		throw RwlockException();
 	}
 }
 
@@ -86,8 +91,7 @@ void CacheRecord::write_lock(){
 	errno = pthread_rwlock_wrlock(&this->rwlock);
 	if(0 != errno){
 		perror("pthread_rwlock_rdlock");
-		//exc
-		return;
+		throw RwlockException();
 	}
 }
 
@@ -96,11 +100,6 @@ void CacheRecord::unlock(){
 	errno = pthread_rwlock_unlock(&this->rwlock); 
 	if(0 != errno){
 		perror("pthread_rwlock_wrlock");
-		//exc
-		return;
+		throw RwlockException();
 	}
 }
-
-
-
-

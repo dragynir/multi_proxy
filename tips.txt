@@ -3,3 +3,11 @@
 можно сделать map с rwlock, readlock
 
 g++ parser.cpp proxy.cpp main.cpp session.cpp cache.cpp safe_cache_map.cpp -lsocket -lresolv -lnsl -o s
+
+
+//=====================================strtol!!!!!!!!!!!!!!!!!!!!
+
+
+
+много pdf
+//http://nuclphys.sinp.msu.ru/nseminar/index.html

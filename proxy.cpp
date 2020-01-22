@@ -7,7 +7,6 @@ Proxy::Proxy(int listener){
 }
 
 
-
 void * start_new_session(void * session_params){
 
 
@@ -34,8 +33,6 @@ void * start_new_session(void * session_params){
     free(attr);
 
 
-
-    int res = 0;
 
     if(session->read_client_request() < 0){
         delete session;
@@ -66,6 +63,7 @@ void * start_new_session(void * session_params){
     }
 
     std::cout << "Thread out" << "\n";
+    
     delete session;
     return NULL;
 }
@@ -80,6 +78,7 @@ void Proxy::start(){
 
     if(0 != errno){
         perror("pthread_attr_init");
+        close(this->listener);
         return;
     }
 
@@ -89,6 +88,7 @@ void Proxy::start(){
 
     if (0 != errno){
         perror("pthread_attr_setdetachstate");
+        close(this->listener);
         return;
     }
 
@@ -103,12 +103,6 @@ void Proxy::start(){
 	}
 }
 
-
-
-/*struct session_attr{
-    int client_socket;
-    std::map<std::string, CacheRecord *> * cache;
-};*/
 
 int Proxy::accept_connection(){
 	int client_socket = accept(this->listener, NULL, NULL);

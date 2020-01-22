@@ -21,7 +21,14 @@ int bind_to_port(int port) {
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);                   
     servaddr.sin_port = htons((uint16_t)port);               
 
-    int listener = socket(AF_INET, SOCK_STREAM, 0);                        
+    int listener = socket(AF_INET, SOCK_STREAM, 0);    
+
+    if(listener < 0){
+        perror("socket");
+        return -1;
+    }
+
+
     int res = bind(listener, (struct sockaddr*)&servaddr, sizeof(servaddr));
     if (res < 0) {   
         fprintf(stderr, "Can't bind to port %d!\n", port);
@@ -43,7 +50,7 @@ int main(int argc, char** argv){
 
 
     int radix = 10;
-    int port_to_listen = strtol(argv[1], NULL, radix);
+    int port_to_listen = strtol(argv[1], NULL, radix);//=====================================strtol!!!!!!!!!!!!!!!!!!!!
         
     if(0 != errno){
         perror("strtol");
@@ -53,10 +60,17 @@ int main(int argc, char** argv){
 
     int listener = bind_to_port(port_to_listen);
 
+
+    if(listener < 0){
+        return EXIT_FAILURE;
+    }
+
+
     int res = listen(listener, MAX_CONNECTIONS_COUNT);
 
     if(res < 0){
     	fprintf(stderr, "Port listen failed...\n");
+        close(listener);
     	return EXIT_FAILURE;
     }
 

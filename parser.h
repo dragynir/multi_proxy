@@ -1,7 +1,5 @@
 #pragma once
 
-//#include"session.h"
-
 #include <unistd.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -27,12 +25,10 @@ struct http_info{
 
 class HttpParser{
 
-
-
 public:
 
 
-	static int parse_client_request(char *  request, int request_length, char ** url, /*char ** protocol,*/ char ** host, char ** resource);
+	static int parse_client_request(char *  request, int request_length, char ** url, char ** host, char ** resource);
 	
 private:
 

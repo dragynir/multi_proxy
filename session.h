@@ -47,7 +47,10 @@
 
 
 
-
+struct session_attr{
+	int client_socket;
+	SafeCacheMap * cache;
+};
 
 
 
@@ -141,11 +144,4 @@ private:
 	int buffer_read_position;
 	int request_length;
 
-};
-
-
-
-struct session_attr{
-	int client_socket;
-	SafeCacheMap * cache;
 };

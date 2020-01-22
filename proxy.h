@@ -15,7 +15,6 @@ public:
 
 	~Proxy();
 
-
 	void start();
 
 private:
@@ -27,5 +26,4 @@ private:
 	bool is_alive;
 	SafeCacheMap cache;
 	pthread_attr_t pthread_detach_attr;
-	//std::vector<Session *> sessions;
 };
