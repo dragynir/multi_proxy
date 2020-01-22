@@ -1,0 +1,10 @@
+
+
+
+//map usu unuse, может быть так, что try_erase удалит CacheRecord, а она уже взята из мапки но не сделала use!!!!!!!!
+
+
+
+
+
+можно сделать map с rwlock, readlock
