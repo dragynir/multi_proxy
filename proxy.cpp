@@ -97,6 +97,7 @@ void Proxy::start(){
 	while(this->is_alive){
         res = accept_connection();
         if(res < 0){
+            close(this->listener);
             break;
         }
 	}

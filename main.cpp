@@ -10,7 +10,7 @@
 #include<string.h>
 
 
-#define MAX_CONNECTIONS_COUNT 100
+#define MAX_CONNECTIONS_COUNT 1024
 
 
 int bind_to_port(int port) {

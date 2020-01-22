@@ -37,10 +37,9 @@ Session::~Session(){
 	if(NULL != this->cache_record && this->cache_record->is_local()){
 		delete this->cache_record;
 	}
+
+	close_sockets();
 }
-
-
-
 
 
 
@@ -608,6 +607,11 @@ int Session::manage_response(){
 					this->cache_record->finish();
 					
 					std::cout << "Write cache finish for: " << this->url << "\n";
+
+					if(-1 == this->client_socket){
+						//клиент уже отсоединился, производилась докачка данных
+						return 0;
+					}
 					
 				}else{
 					int to_add = this->cache_write_position + read_count - cache_size;
@@ -747,71 +751,72 @@ int Session::manage_response(){
 		
 
 
-		assert(this->client_socket	>= 0);
+		if(-1 != this->client_socket){
 
+			char * data = this->cache_record->get_data();
+			int size = this->cache_record->get_size();
 
-		char * data = this->cache_record->get_data();
-		int size = this->cache_record->get_size();
-
-		if(NULL == data){
-			assert(0 == size);
-			return 0;
-		}
-
-
-		int to_write = size - this->cache_read_position;
-
-
-		assert(to_write >= 0);
-		
-
-		if(0 == to_write && this->cache_record->is_full()){
-			this->sending_to_client	= false;
-			std::cout << "All data had writen for(main): " << this->url << "\n";
-			close(this->client_socket);
-			this->client_socket = -1;
-
-
-			//мы могли использовать уже локальный кэш
-			if(NULL != this->global_cache_record){
-				this->global_cache_record->unuse();
-			}
-			//cache is ok, just delete session
-			return -1;
-		}
-
-
-		if(0 != to_write){
-			/*if(to_write > IO_BUFFER_SIZE){
-				to_write = IO_BUFFER_SIZE;
-			}*/
-
-			int write_count = write(this->client_socket, data + this->cache_read_position, to_write);
-
-
-
-			//write(1, data + this->cache_read_position, to_write);
-
-			if(write_count < 0){
-				if(EAGAIN != errno && EWOULDBLOCK != errno){
-					close(this->client_socket);
-					this->client_socket	= -1;
-					this->sending_to_client = false;
-					std::cout << "Close client socket for: " << this->url << "\n";
-					perror("write to client: ");
-				}
-
-				// do not delete session, докачиваем данные
+			if(NULL == data){
+				assert(0 == size);
 				return 0;
 			}
 
 
-			this->cache_read_position+=write_count;
+			int to_write = size - this->cache_read_position;
+
+
+			assert(to_write >= 0);
 			
+
+			if(0 == to_write && this->cache_record->is_full()){
+				this->sending_to_client	= false;
+				std::cout << "All data had writen for(main): " << this->url << "\n";
+				close(this->client_socket);
+				this->client_socket = -1;
+
+
+				//мы могли использовать уже локальный кэш
+				if(NULL != this->global_cache_record){
+					this->global_cache_record->unuse();
+				}
+				//cache is ok, just delete session
+				return -1;
+			}
+
+
+			if(0 != to_write){
+				/*if(to_write > IO_BUFFER_SIZE){
+					to_write = IO_BUFFER_SIZE;
+				}*/
+
+				int write_count = write(this->client_socket, data + this->cache_read_position, to_write);
+
+
+
+				//write(1, data + this->cache_read_position, to_write);
+
+				if(write_count < 0){
+					if(EAGAIN != errno && EWOULDBLOCK != errno){
+						close(this->client_socket);
+						this->client_socket	= -1;
+						this->sending_to_client = false;
+						std::cout << "Close client socket for: " << this->url << "\n";
+						perror("write to client: ");
+					}
+
+					// do not return, докачиваем данные
+				}
+
+
+				this->cache_read_position+=write_count;
+				
+
+			}
 
 		}
 
-	}
+
+	}//while
 	
 
 	return 0;
@@ -838,9 +843,13 @@ int Session::use_cache(){
 
 	while(1){
 
-		// нет необъходимости захватывать кэш т. к. текущую запись нельзя удалить из-за наличия ссылки на кэш в текущей сессии
+		// нельзя удалить из-за наличия ссылки на кэш в текущей сессии
 		if(NULL == this->cache_record){
+
+			this->cache->lock();
 			std::map<std::string, CacheRecord *>::iterator it = this->cache->find(this->url);
+			this->cache->unlock();
+
 			this->cache_record = it->second;
 
 			if(this->cache->end() == it){
@@ -905,10 +914,7 @@ int Session::use_cache(){
 
 
 		if(write_count < 0){
-			if(EAGAIN != errno && EWOULDBLOCK != errno){
-				perror("cache write");
-				return -1;
-			}
+			perror("cache write");
 			return 0;
 		}
 
@@ -927,7 +933,6 @@ int Session::use_cache(){
 
 
 void Session::close_sockets(){
-
 
 	if(-1 != this->client_socket){
 		close(this->client_socket);
