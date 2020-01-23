@@ -16,16 +16,33 @@ CacheRecord::CacheRecord(bool local){
 	if(0 != errno){
 		throw InitRwlockException();
 	}
+
+
+	errno = pthread_cond_init(&this->cond, NULL);
+
+	if(0 != errno){
+		throw CondInitException();
+	}
+
+	errno = pthread_mutex_init(&this->mutex, NULL);
+
+	if(0 != errno){
+		throw MutexInitException();
+	}
 }
 
 
 CacheRecord::~CacheRecord(){
 	free(this->data);
-	errno = pthread_rwlock_destroy(&rwlock);
+	errno = pthread_rwlock_destroy(&this->rwlock);
+
 	if(0 != errno){
 		perror("pthread_rwlock_destroy");
 	}
+	pthread_cond_destroy(&this->cond);
+	pthread_mutex_destroy(&this->mutex);
 }
+
 
 //обработать exception в session
 int CacheRecord::add_data(char * add_data, size_t add_size){
@@ -75,6 +92,40 @@ int CacheRecord::add_data(char * add_data, size_t add_size){
 
 
 
+
+void CacheRecord::cond_broadcast(){
+	errno = pthread_cond_broadcast(&this->cond);
+
+	if(0 != errno){
+		throw ConditionException();
+	}
+}
+
+
+void CacheRecord::cond_wait(){
+	errno = pthread_cond_wait(&this->cond, &this->mutex);
+
+	if(0 != errno){
+		throw ConditionException();
+	}
+}
+
+
+void CacheRecord::lock_cond_mutex(){
+	errno = pthread_mutex_lock(&this->mutex);
+	if(0 != errno){
+		throw MutexError();
+	}
+}
+
+
+void CacheRecord::unlock_cond_mutex(){
+	//std::cout << "unlock cond mutex" << "\n";
+	errno = pthread_mutex_unlock(&this->mutex);
+	if(0 != errno){
+		throw MutexError();
+	}
+}
 
 
 

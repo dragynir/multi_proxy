@@ -17,6 +17,9 @@ SafeCacheMap::~SafeCacheMap(){
 	if(0 != errno){
 		perror("pthread_mutex_destroy");
 	}
+	for(std::map<std::string, CacheRecord *>::iterator it = this->cache.begin(); it != this->cache.end(); ++it) {
+        delete it->second;
+    }
 }
 
 

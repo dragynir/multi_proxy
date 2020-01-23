@@ -2,8 +2,10 @@
 
 можно сделать map с rwlock, readlock
 
-g++ parser.cpp proxy.cpp main.cpp session.cpp cache.cpp safe_cache_map.cpp -mt -lsocket -lresolv -lnsl -o s
+g++ parser.cpp proxy.cpp main.cpp session.cpp cache.cpp safe_cache_map.cpp -lsocket -lresolv -lnsl -o s
 
+
+CC parser.cpp proxy.cpp main.cpp session.cpp cache.cpp safe_cache_map.cpp -mt -lsocket -lresolv -lnsl -o s
 
 //=====================================strtol!!!!!!!!!!!!!!!!!!!!
 //ограничить кол-во нитей?
@@ -16,3 +18,5 @@ http://nuclphys.sinp.msu.ru/nseminar/index.html
 
 
 http://edu-top.ru/katalog/urls.php
+
+http://webinar.pgsga.ru/

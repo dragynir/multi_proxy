@@ -7,19 +7,6 @@
 
 
 
-struct MutexInitException : public std::exception {
-   const char * what () const throw () {
-      return "Can't init mutex!";
-   }
-};
-
-
-struct MutexError : public std::exception {
-   const char * what () const throw () {
-      return "Mutex lock or unlock error!";
-   }
-};
-
 
 
 

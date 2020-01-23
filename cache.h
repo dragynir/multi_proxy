@@ -14,6 +14,7 @@
 
 
 #include<exception>
+#include<iostream>
 
 struct InitRwlockException : public std::exception {
    const char * what () const throw () {
@@ -25,6 +26,34 @@ struct InitRwlockException : public std::exception {
 struct RwlockException : public std::exception {
    const char * what () const throw () {
       return "Rwlock lock or unlock error!";
+   }
+};
+
+
+struct MutexError : public std::exception {
+   const char * what () const throw () {
+      return "Mutex lock or unlock error!";
+   }
+};
+
+
+struct MutexInitException : public std::exception {
+   const char * what () const throw () {
+      return "Can't init mutex!";
+   }
+};
+
+
+struct CondInitException : public std::exception{
+   const char * what () const throw () {
+      return "Can't init conditional variable!";
+   }
+};
+
+
+struct ConditionException : public std::exception{
+   const char * what () const throw () {
+      return "Conditional variable error!";
    }
 };
 
@@ -58,7 +87,11 @@ public:
 	void use(){
 		this->links_count++;
 	}
-	void unuse(){this->links_count--;}
+	void unuse(){
+		if(this->links_count >= 0){
+			this->links_count--;
+		}
+	}
 
 
 	int add_data(char * data, size_t size);
@@ -75,6 +108,22 @@ public:
 	void unlock();
 
 
+
+	void cond_broadcast();
+
+
+	void cond_wait();
+
+
+	void lock_cond_mutex();
+
+
+	void unlock_cond_mutex();
+
+
+
+
+
 	/*bool is_empty(){return 0 == size;}
 
 	bool in_progress(){return !full && (0 != size);}*/
@@ -82,6 +131,9 @@ public:
 private:
 
 	pthread_rwlock_t rwlock;
+
+	pthread_cond_t cond; 
+    pthread_mutex_t mutex;
 
 
 

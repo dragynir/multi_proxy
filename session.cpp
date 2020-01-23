@@ -15,6 +15,7 @@ Session::Session(int client_socket, SafeCacheMap * cache){
 	this->cache = cache;
 	this->cache_record = NULL;
 	this->global_cache_record = NULL;
+	this->use_global_record = false;
 
 	state = RECEIVE_CLIENT_REQUEST;
 	cache_read_position = 0;
@@ -34,11 +35,11 @@ Session::Session(int client_socket, SafeCacheMap * cache){
 
 Session::~Session(){
 
-	if(NULL != this->cache_record && this->cache_record->is_local()){
-		delete this->cache_record;
+	if(!use_global_record){
+		delete this->cache_record; 
 	}
-
 	close_sockets();
+	free(this->buffer);
 }
 
 
@@ -104,7 +105,7 @@ int Session::handle_client_request(int request_length){
 
 
 	
-	this->keep_request.assign(this->buffer, request_length + strlen("\r\n\r\n"));
+	this->keep_request.append(this->buffer, request_length + strlen("\r\n\r\n"));
 
 
 	this->buffer[request_length + strlen("\r\n\r\n")] = '\0';
@@ -133,14 +134,14 @@ int Session::handle_client_request(int request_length){
 	std::string string_resource(char_resource);
 
 
-	this->host.assign(char_host, strlen(char_host));
+	this->host.append(char_host, strlen(char_host));
 
 	if(NULL == char_url){
 		
 		this->url = this->host + string_resource;
 
 	}else{
-		this->url.assign(char_url, strlen(char_url));
+		this->url.append(char_url, strlen(char_url));
 		free(char_url);
 	}
 	free(char_resource);
@@ -157,6 +158,7 @@ int Session::handle_client_request(int request_length){
 
 	replace_field(this->keep_request, this->url, string_resource);
 	replace_field(this->keep_request, "keep-alive", "close");
+	replace_field(this->keep_request, "Keep-Alive", "close");
 	replace_field(this->keep_request, "Proxy-Connection", "Connection");
 
 
@@ -195,10 +197,22 @@ int Session::handle_client_request(int request_length){
 				catch (std::bad_alloc& ba)
 				{
 					std::cout << "bad_alloc caught: " << ba.what() << '\n';
-
+					this->cache->unlock();
+					return -1;
+				}catch(InitRwlockException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+					this->cache->unlock();
+					return -1;
+				}catch(CondInitException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+					this->cache->unlock();
+					return -1;
+				}catch(MutexInitException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
 					this->cache->unlock();
 					return -1;
 				}
+
 
 				std::cout << "Create cache for: " << this->url << "\n";
 
@@ -212,6 +226,7 @@ int Session::handle_client_request(int request_length){
 
 			}else{
 				std::cout << "\n<=======================Use cache for: " << this->url << "\n";
+				use_global_record = true;
 				this->state = USE_CACHE;
 				it->second->use();
 				this->buffer_write_position = 0;
@@ -230,6 +245,18 @@ int Session::handle_client_request(int request_length){
 			catch (std::bad_alloc& ba)
 			{
 				std::cout << "bad_alloc caught: " << ba.what() << '\n';
+				this->cache->unlock();
+				return -1;
+			}catch(InitRwlockException& exc){
+				std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+				this->cache->unlock();
+				return -1;
+			}catch(CondInitException& exc){
+				std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+				this->cache->unlock();
+				return -1;
+			}catch(MutexInitException& exc){
+				std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
 				this->cache->unlock();
 				return -1;
 			}
@@ -416,7 +443,9 @@ void Session::try_erase_cache(){
 
 	
 
-	this->cache->lock();
+	this->cache->lock();//----------------------------lock
+
+	this->global_cache_record->write_lock();
 
 	this->global_cache_record->outdated();
 
@@ -430,10 +459,13 @@ void Session::try_erase_cache(){
 
 		this->cache->erase(it);
 		this->global_cache_record = NULL;
+	}else{
+		this->global_cache_record->unlock();//----------------------------unlock
+		this->cache_record->cond_broadcast();
 	}
+
 	this->cache->unlock();
 
-	
 }
 
 
@@ -461,8 +493,14 @@ int Session::manage_response(){
 				{
 					std::cout << "bad_alloc caught: " << ba.what() << '\n';
 					return -1;
-				}catch(std::exception e){
-					std::cout << "Caught: " << e.what() << '\n';
+				}catch(InitRwlockException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+					return -1;
+				}catch(CondInitException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
+					return -1;
+				}catch(MutexInitException& exc){
+					std::cout << "CacheRecord(handle_client_request): " << exc.what() << '\n';
 					return -1;
 				}
 			}
@@ -522,12 +560,19 @@ int Session::manage_response(){
 
 					if(0 == read_count){
 
+
+						this->cache_record->write_lock();
+
 						this->cache_record->finish();
+
+						this->cache_record->unlock();
+
 						
 						std::cout << "Write cache finish for: " << this->url << "\n";
 
 						if(-1 == this->client_socket){
 							//клиент уже отсоединился, производилась докачка данных
+							this->cache_record->cond_broadcast();
 							return 0;
 						}
 						
@@ -547,11 +592,21 @@ int Session::manage_response(){
 								return -1;
 							}
 
+							// is not
+							if(!this->cache_record->is_local()){
+								this->cache_record->cond_broadcast();
+								//std::cout << "cond broadcast in load:" << "\n";
+							}
+
+							
+
 						}catch(RwlockException& e){
 							std::cout << "Rwlock: " << e.what() << '\n';
+							try_erase_cache();
 							return -1;
 						}catch(std::exception& exc){
 							std::cout << "Caught: " << exc.what() << '\n';
+							try_erase_cache();
 							return -1;
 						}
 
@@ -614,21 +669,32 @@ int Session::manage_response(){
 							try{
 								res = this->global_cache_record->add_data(this->cache_record->get_data(), this->cache_record->get_size());
 
+
+								if(this->cache_record->is_full()){
+									this->global_cache_record->finish();
+								}
+
 								if(res < 0){
 									std::cout << "Out of memory on: " << this->url << "\n";
 									try_erase_cache();
 									return -1;
 								}
 
+								this->cache_record->cond_broadcast();
+								//std::cout << "cond broadcast in load:" << "\n";
+
 							}catch(RwlockException& e){
 								std::cout << "Rwlock: " << e.what() << '\n';
+								try_erase_cache();
 								return -1;
 							}catch(std::exception& exc){
 								std::cout << "Caught: " << exc.what() << '\n';
+								try_erase_cache();
 								return -1;
 							}
 
 							assert(this->cache_record->is_local());
+							use_global_record = true;
 							delete this->cache_record;
 							this->cache_record = this->global_cache_record;
 							assert(NULL != this->cache_record);
@@ -733,11 +799,15 @@ int Session::manage_response(){
 			}
 
 
-		}catch (MutexError& e)
+		}catch (MutexError& exc)
 		{
-			std::cout << "lock cache: " << e.what() << '\n';
+			std::cout << "lock cache: " << exc.what() << '\n';
 			return -1;
-		}catch(std::exception& exc){
+		}catch(ConditionException& exc){
+			std::cout << "Caught: " << exc.what() << '\n';
+			return -1;
+		}
+		catch(std::exception& exc){
 			std::cout << "Caught: " << exc.what() << '\n';
 			return -1;
 		}
@@ -785,7 +855,17 @@ int Session::use_cache(){
 				}
 			}
 
-		
+
+				/*std::cout << "Size:\n" << size << "\n";
+			std::cout << "read_pos:\n" << this->cache_read_position << "\n";
+			std::cout << "outdated:\n" << this->cache_record->is_outdated() << "\n";*/
+
+
+
+			this->cache_record->read_lock();//-----------------------------------lock---------------------------------
+
+
+
 			if(this->cache_record->is_outdated()){
 				this->global_cache_record = this->cache_record;
 				try_erase_cache();
@@ -796,38 +876,72 @@ int Session::use_cache(){
 
 
 
+			this->cache_record->lock_cond_mutex();
 
-			this->cache_record->read_lock();//-----------------------------------lock---------------------------------
+
+
+			while(!this->cache_record->is_full() && 0 == (this->cache_record->get_size() - this->cache_read_position)){
+
+				this->cache_record->unlock();//--------------------------------unlock------------------------------------
+
+				this->cache_record->cond_wait();
+
+				//std::cout << "cond broadcast in cache:" << "\n";
+				this->cache_record->cond_broadcast();
+
+
+				if(this->cache_record->is_outdated()){
+					this->cache_record->unlock_cond_mutex();
+					this->global_cache_record = this->cache_record;
+					try_erase_cache();
+					close_sockets();
+					std::cout << "Cache is outdated" << "\n";
+					return -1;
+				}
+
+
+				this->cache_record->read_lock();//-----------------------------------lock---------------------------------
+			}
+
+
+			this->cache_record->unlock_cond_mutex();
+
+
 
 			char * data = this->cache_record->get_data();
+
 			int size = this->cache_record->get_size();
 
 
 
-				/*std::cout << "Size:\n" << size << "\n";
-			std::cout << "read_pos:\n" << this->cache_read_position << "\n";
-			std::cout << "outdated:\n" << this->cache_record->is_outdated() << "\n";*/
-
-			if(0 == size){
-				this->cache_record->unlock();//-------------------------------unlock-------------------------------------
+			/*if(0 == size){
 				continue;
-			}
+			}*/
+
 
 			assert(NULL != data);
 
 			int to_write = size - this->cache_read_position;
+
+
+
+
+
+
+
+
 			assert(to_write >= 0);
 
 			/*if(to_write > IO_BUFFER_SIZE){
 				to_write = IO_BUFFER_SIZE;
 			}*/
 
-			if(0 == to_write && this->cache_record->is_full()){
+			/*if(0 == to_write && this->cache_record->is_full()){
 				std::cout << "All data had writen(cache) for: " << this->url << "\n";
 				//delete session ok
 				this->cache_record->unlock();//--------------------------------unlock------------------------------------
 				return -1;
-			}
+			}*/
 
 			
 
@@ -839,29 +953,48 @@ int Session::use_cache(){
 
 			if(write_count < 0){
 				perror("cache write to client: ");
+				this->cache_record->unuse();
 				this->cache_record->unlock();//-------------------------------------unlock-------------------------------
 				return 0;
 			}
-
-			this->cache_record->unlock();//-------------------------------------unlock-------------------------------
-
 
 
 			this->cache_read_position+=write_count;
 
 
-		}catch(MutexError& e){
 
-			std::cerr << "lock cache: " << e.what() << '\n';
+			if(0 == (this->cache_record->get_size() - this->cache_read_position) && this->cache_record->is_full()){
+				std::cout << "All data had writen(cache) for: " << this->url << "\n";
+				this->cache_record->unuse();
+				//delete session ok
+				this->cache_record->unlock();//--------------------------------unlock------------------------------------
+				return -1;
+			}
+
+			this->cache_record->unlock();//-------------------------------------unlock-------------------------------
+
+
+		}catch(MutexError& exc){
+
+			std::cerr << "lock cache: " << exc.what() << '\n';
+			this->cache_record->unuse();
 			return -1;
 			
-		}catch(RwlockException& e){
-			std::cerr << "Rwlock: " << e.what() << '\n';
+		}catch(RwlockException& exc){
+			std::cerr << "Rwlock: " << exc.what() << '\n';
+			this->cache_record->unuse();
 			return -1;
-		}catch(std::exception& exc){
-			std::cout << "Caught: " << exc.what() << '\n';
+		}catch(ConditionException& exc){
+			std::cerr << "Cond: " << exc.what() << '\n';
+			this->cache_record->unuse();
+			return -1;
+		}catch(std::exception exc){
+			std::cerr << "Caught: " << exc.what() << '\n';
+			this->cache_record->unuse();
 			return -1;
 		}
+
+
 
 
 	}
