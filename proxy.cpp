@@ -144,5 +144,6 @@ int Proxy::accept_connection(){
 
 
 Proxy::~Proxy(){
-
+    close(this->listener);
+    pthread_attr_destroy(&this->pthread_detach_attr);
 }
