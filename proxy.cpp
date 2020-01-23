@@ -26,7 +26,7 @@ void * start_new_session(void * session_params){
     }
     catch (std::bad_alloc& ba)
     {
-        std::cerr << "bad_alloc caught: " << ba.what() << '\n';
+        std::cout << "bad_alloc caught: " << ba.what() << '\n';
         free(attr);
         return NULL;
     }

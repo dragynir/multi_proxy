@@ -21,4 +21,4 @@ safe_cache_map.o: safe_cache_map.cpp
 	g++ -g -Wall -c safe_cache_map.cpp
 
 clean:
-	rm proxy.o main.o cache.o session.o parser.o s
+	rm proxy.o main.o cache.o session.o parser.o safe_cache_map.o s

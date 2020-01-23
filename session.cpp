@@ -259,6 +259,7 @@ int Session::handle_client_request(int request_length){
 
 
 	if(remote_socket < 0){
+		try_erase_cache();//========================================================
 		return -1;
 	}
 
@@ -647,7 +648,7 @@ int Session::manage_response(){
 
 				if(NULL == data){
 					assert(0 == size);
-					return 0;
+					continue;//==========================================================================return 0
 				}
 
 
